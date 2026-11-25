@@ -62,3 +62,68 @@ The remote and bench execution kinds dispatch to a locally installed adapter. Th
 ## Experiment campaigns (experimental)
 
 A manifest may include `"depends_on":[12,15]` and `"replication":{"desired_runs":3,"distinct_runners":true}`. Dependencies must be closed issues with enough accepted records on the queue's default branch. Results from a different manifest revision do not count. Replication is serialized through the issue lease. A result is *pending* while its pull request remains unmerged; accepted results are those already committed to the queue's default branch. The runner searches for pushed result branches and re-creates a missing PR after an interrupted publication. These workflows have local Git integration tests but not a complete live multi-replication campaign. For multi-run experiments, a later runner invocation reconciles accepted counts and closes completed issues. Manual PR rejections, changed manifests, and long-running recovery still need an explicit periodic reconciler. Do not treat an issue's closed state alone as experimental evidence.
+
+## Opt-in GPU container experiments
+
+Only Docker GPU containers are currently supported. A manifest must explicitly request
+`"gpu":"cuda"` with `"gpu.cuda"` in capabilities, or
+`"gpu":"rocm"` with `"gpu.rocm"` in capabilities. A CPU-only manifest
+never receives GPU devices, even on a GPU-equipped runner.
+
+Each contributor authorizes GPU access **locally**, as well as separately allowlisting
+the exact immutable container image digest. The GPU configuration cannot be supplied
+or overridden by a GitHub issue.
+
+For a CUDA host with a compatible NVIDIA container toolkit:
+
+```json
+{
+  "capabilities": ["compute.cpu", "gpu.cuda"],
+  "gpu": {"enabled": true, "backend": "cuda", "device_ids": ["0"]}
+}
+```
+
+For an AMD ROCm host:
+
+```json
+{
+  "capabilities": ["compute.cpu", "gpu.rocm"],
+  "gpu": {
+    "enabled": true,
+    "backend": "rocm",
+    "render_devices": ["/dev/dri/renderD128"],
+    "group_ids": [110]
+  }
+}
+```
+
+The above are fields inside the local policy (not complete policies). The AMD group ID
+must match the host's `render` access group, and the render node must be the
+intended GPU. The AMD mapping grants access to `/dev/kfd` plus only approved
+render nodes. A strictly local optional `hsa_override_gfx_version` value (e.g.
+`"10.3.0"`) passes the corresponding ROCm environment variable, but **cannot
+guarantee that unsupported AMD cards actually execute HIP kernels**.
+
+Add to a pinned-source **container** experiment manifest:
+
+```json
+{
+  "gpu": "cuda",
+  "capabilities": ["compute.cpu", "gpu.cuda"]
+}
+```
+
+Use `"rocm"` and `"gpu.rocm"` for an AMD experiment. A CUDA request never
+runs on a ROCm-only host and vice versa. The GPU field cannot be used with native,
+remote, or bench execution. Without GPU consent the runner rejects the manifest.
+No issue-supplied Docker GPU flags, render nodes, group IDs, or override values
+are honored.
+
+GPU devices expose a greater kernel and driver attack surface than CPU-only
+containers. GPU memory capacity is **not** governed by the Docker `--memory`
+limit. Contributors must account for GPU VRAM separately and limit concurrent
+GPU experiments locally. NVIDIA `device_ids` are Docker-visible device indexes,
+not a promise of workload compatibility. Pascal (compute 6.1) requires software
+that supports that target. The GPU features are an opt-in privilege; users should
+not enable them for untrusted experiments without appropriate host isolation.
+
