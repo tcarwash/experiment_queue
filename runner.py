@@ -1,5 +1,6 @@
 """Contributor-controlled GitHub experiment runner (standard library only)."""
 import argparse, datetime, json, os, pathlib, re, subprocess, tempfile, time, uuid
+from inputs import validate, approved, materialize
 UTC=datetime.timezone.utc
 def now(): return datetime.datetime.now(UTC)
 def run(*args, cwd=None, check=True, **kw):
@@ -14,10 +15,12 @@ def manifest(body):
     if not isinstance(d.get('command'),list) or not d['command'] or not all(isinstance(x,str) and x for x in d['command']): raise ValueError('invalid command')
     if not re.fullmatch('[0-9a-f]{40}',d.get('revision','')): raise ValueError('pin full git revision')
     if not isinstance(d.get('capabilities',[]),list): raise ValueError('invalid capabilities')
+    validate(d.get("inputs",[]))
     return d
 def matches(d,p):
     return (set(d.get('capabilities',[])) <= set(p.get('capabilities',[]))
         and d.get('source') in p.get('allowed_sources',[])
+        and approved(d.get('inputs',[]),p)
         and d.get('execution')=='scripted'
         and p.get('allow_native',False)
         and 0 < d.get('timeout',0) <= p.get('max_seconds',0))
@@ -73,7 +76,10 @@ def execute(x,p,i,d):
             src=pathlib.Path(tmp)/'source'; out=pathlib.Path(tmp)/'output'; out.mkdir()
             git(tmp,'clone','--no-checkout','--',d['source'],str(src))
             git(src,'checkout','--detach',d['revision'])
-            env={'PATH':os.defpath,'HOME':tmp,'EXPERIMENT_OUTPUT':str(out),'LANG':'C.UTF-8'}
+            input_root=pathlib.Path(tmp)/'inputs'
+            materialize(d.get('inputs',[]),p,git(x.checkout,'remote','get-url','origin').stdout.strip(),input_root)
+            if not lease.renew(): raise RuntimeError('lease lost during staging')
+            env={'EXPERIMENT_INPUTS':str(input_root),'PATH':os.defpath,'HOME':tmp,'EXPERIMENT_OUTPUT':str(out),'LANG':'C.UTF-8'}
             started=now()
             import signal
             with open(out/'stdout.log','w') as stdout, open(out/'stderr.log','w') as stderr:

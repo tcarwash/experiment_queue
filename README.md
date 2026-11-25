@@ -20,3 +20,8 @@ Leases use Git ref compare-and-swap. Results are committed to unique attempt bra
 ## Next steps
 
 Strict schema validation, renewable leases during checkout/publication, explicit failure state and retries, replication slots, container executor with isolation/resource budgets, SSH executor, MCP, local SQLite recovery, bench adapters and local hardware interlocks, contributor UI, artifact storage. GitHub integration and concurrent claims require live validation before production use.
+
+## Additional pinned inputs
+
+Optional manifest field: "inputs": [{"name":"fixtures","repository":"self","revision":"<40 hex SHA>","paths":["fixtures/nvis"]}].
+For external inputs use exact HTTPS GitHub clone URLs. Each repository (including the literal self) must appear in local policy allowed_inputs. Explicit repository-relative paths are mandatory. Files are exported directly from Git blobs without checkout filters, symlinks or submodules. EXPERIMENT_INPUTS points to the staging directory, with one child per input name. max_input_bytes limits selected materialized bytes, not network fetch or Git object storage. Inputs have read-only file permissions, which are NOT a security boundary for native processes running as the same user. Container isolation remains required for untrusted workloads. The primary executable source still follows its separate allowed_sources and allow_native policy.

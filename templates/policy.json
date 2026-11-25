@@ -1,1 +1,11 @@
-{"runner":"my-runner","capabilities":["compute.cpu"],"allowed_sources":[],"allow_native":false,"max_seconds":600}
+{
+  "runner": "my-runner",
+  "capabilities": [
+    "compute.cpu"
+  ],
+  "allowed_sources": [],
+  "allow_native": false,
+  "max_seconds": 600,
+  "allowed_inputs": [],
+  "max_input_bytes": 100000000
+}
