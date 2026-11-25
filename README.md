@@ -1,6 +1,20 @@
 # Experiment Runner
 
-A contributor-controlled, GitHub-backed distributed research queue. Initial prototype; do not run untrusted code.
+A contributor-controlled, GitHub-backed distributed research queue.
+Execution remains opt-in and potentially risky: do not execute untrusted
+workloads outside an appropriately isolated account or host.
+
+## Agent-oriented workflows
+
+Point an agent at [AGENTS.md](AGENTS.md). The
+[contributor setup guide](docs/agents/CONTRIBUTOR_SETUP.md) allows an agent
+to inspect a workstation and **choose acceptable CPU/GPU/adapter workloads**
+inside an owner-approved resource and trust envelope. The
+[experiment authoring guide](docs/agents/EXPERIMENT_AUTHORING.md) covers
+pinned source, manifests and evidence. An operator can give an agent a filled
+[private preferences template](templates/contributor-preferences.md) rather
+than selecting each workload individually. Copilot roles are under
+`.github/agents/`; `CLAUDE.md` and `GEMINI.md` share the instructions.
 
 ## Quick start
 
@@ -13,13 +27,22 @@ python runner.py --repo owner/research --checkout /path/to/research --policy pol
 python -m unittest discover -s tests -v
 ```
 
-Issue body must contain a fenced JSON manifest with schema experiment/v1, execution scripted, source (approved clone URL), revision (40 hex commit), command (argv), capabilities (list), timeout (seconds). The command writes report.md and optional flat artifacts to EXPERIMENT_OUTPUT. A valid negative or inconclusive finding exits zero. Nonzero exits are execution failures, not findings.
+Issue body must contain a fenced JSON manifest with schema `experiment/v1`,
+execution `container` (recommended), source (approved clone URL), revision
+(full 40-hex pushed commit), image (approved immutable ID/digest), command
+(argv), capabilities (list), and timeout (seconds). The command writes report.md and optional flat artifacts to EXPERIMENT_OUTPUT. A valid negative or inconclusive finding exits zero. Nonzero exits are execution failures, not findings.
 
-Leases use Git ref compare-and-swap. Results are committed to unique attempt branches and submitted as PRs; review and merge closes the issue. Claims are advisory among cooperative runners, not authorization. Review duplicate results if leases expire. Do not enable branch rules that prevent lease updates. No daemon or automatic execution is enabled.
+Leases use Git ref compare-and-swap. Results are committed to unique attempt branches and submitted as PRs; review and merge closes the issue. Claims are advisory among cooperative runners, not authorization. Review duplicate results if leases expire. Do not enable branch rules that prevent lease updates. A persistent scheduler is available but is disabled by default.
 
-## Next steps
+## Operational limitations
 
-Strict schema validation, renewable leases during checkout/publication, explicit failure state and retries, replication slots, container executor with isolation/resource budgets, SSH executor, MCP, local SQLite recovery, bench adapters and local hardware interlocks, contributor UI, artifact storage. GitHub integration and concurrent claims require live validation before production use.
+This project has an opt-in persistent scheduler, result/recovery support, and
+local CPU/GPU execution, but it is **not** an unrestricted multi-tenant compute
+service. A typical Docker daemon is privileged; GPU device access broadens
+kernel exposure. Podman/GPU portability, hard output storage limits, process
+recovery after crashes and hard per-day execution cutoffs are not fully
+implemented. The MCP interface is read-only. Physical bench and remote
+execution require contributor-supplied adapters and local safety controls.
 
 ## Additional pinned inputs
 

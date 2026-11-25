@@ -1,19 +1,28 @@
 ## Research question
 
-What are we trying to establish?
+What are we trying to establish? State the hypothesis, controls, and how a
+negative result will be recognized. See docs/agents/EXPERIMENT_AUTHORING.md.
 
 ## Procedure and expected evidence
 
-A successful execution must write report.md to EXPERIMENT_OUTPUT, even if the hypothesis is disproven.
+Prepare and push the executable source commit before filing. Replace the
+full-length source revision and immutable image ID placeholders. CPU container
+workloads are the default; `scripted` execution is unsandboxed and disallowed
+by default. A valid result writes report.md under EXPERIMENT_OUTPUT even when
+the hypothesis is disproved.
 
 ```json
 {
   "schema": "experiment/v1",
-  "execution": "scripted",
+  "execution": "container",
   "source": "https://github.com/OWNER/PROJECT.git",
   "revision": "0000000000000000000000000000000000000000",
-  "command": ["python3", "experiments/example.py"],
+  "image": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "command": ["/bin/sh", "experiments/example.sh"],
   "capabilities": ["compute.cpu"],
   "timeout": 300
 }
 ```
+
+Only add experiment-ready after the exact image, source, capabilities and
+runtime have been approved by an actual contributor and the issue is valid.
