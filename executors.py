@@ -1,7 +1,9 @@
 """Local policy controls container invocation; manifests cannot add flags."""
 import os,re,subprocess
+import adapters
 def permitted(d,p):
     if d.get('execution')=='scripted': return p.get('allow_native',False)
+    if d.get('execution') in ('remote','bench'): return adapters.config(d,p) is not None
     if d.get('execution')!='container': return False
     image=d.get('image','')
     return (p.get('allow_container',False) and isinstance(image,str)
@@ -9,6 +11,7 @@ def permitted(d,p):
         and image in p.get('allowed_images',[]))
 def command(d,p,src,inputs,out,name):
     if d['execution']=='scripted': return d['command']
+    if d['execution'] in ('remote','bench'): return adapters.argv(d,p,src,inputs,out,name)
     if not permitted(d,p): raise ValueError('container not approved')
     runtime=p.get('container_runtime','podman')
     if runtime not in ('docker','podman'): raise ValueError('invalid runtime')

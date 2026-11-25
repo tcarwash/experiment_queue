@@ -2,6 +2,7 @@
 import argparse, datetime, json, os, pathlib, re, subprocess, tempfile, time, uuid
 from inputs import validate, approved, materialize
 from executors import permitted, command, cleanup
+from adapters import lock as adapter_lock
 from inference import report as ai_report, advise
 UTC=datetime.timezone.utc
 def now(): return datetime.datetime.now(UTC)
@@ -14,7 +15,7 @@ def manifest(body):
     if not m: raise ValueError('missing JSON manifest')
     d=json.loads(m[1])
     if d.get('schema')!='experiment/v1': raise ValueError('unsupported schema')
-    if not isinstance(d.get('command'),list) or not d['command'] or not all(isinstance(x,str) and x for x in d['command']): raise ValueError('invalid command')
+    if d.get('execution') not in ('remote','bench') and (not isinstance(d.get('command'),list) or not d['command'] or not all(isinstance(x,str) and x for x in d['command'])): raise ValueError('invalid command')
     if not re.fullmatch('[0-9a-f]{40}',d.get('revision','')): raise ValueError('pin full git revision')
     if not isinstance(d.get('capabilities',[]),list): raise ValueError('invalid capabilities')
     validate(d.get("inputs",[]))
@@ -61,7 +62,9 @@ def main():
     a.add_argument('--repo',required=True); a.add_argument('--checkout',required=True); a.add_argument('--policy',required=True)
     a.add_argument('action',choices=['list','run','review','once']); a.add_argument('--issue',type=int)
     x=a.parse_args(); p=json.loads(pathlib.Path(x.policy).read_text())
-    for i in queue(x.repo):
+    candidates=queue(x.repo) if x.issue is None else [gh(x.repo,'issue','view',str(x.issue),'--json','number,title,body,state,labels')]
+    for i in candidates:
+        if 'state' in i and (i['state']!='OPEN' or not any(l['name']=='experiment-ready' for l in i['labels'])): continue
         try: d=manifest(i['body']); eligible=matches(d,p)
         except (ValueError,TypeError,KeyError): continue
         print(f"{i['number']}: {i['title']} eligible={eligible}",flush=True)
@@ -81,7 +84,7 @@ def execute(x,p,i,d):
         if fresh['state']!='OPEN' or not any(l['name']=='experiment-ready' for l in fresh['labels']) or fresh['body']!=i['body']:
             print('issue changed after discovery',flush=True); return False
         comment(x.repo,n,f'Claimed by {p["runner"]}, attempt {lease.attempt}')
-        with tempfile.TemporaryDirectory(prefix='experiment-',dir=p.get('staging_dir')) as tmp:
+        with adapter_lock(d,p), tempfile.TemporaryDirectory(prefix='experiment-',dir=p.get('staging_dir')) as tmp:
             src=pathlib.Path(tmp)/'source'; out=pathlib.Path(tmp)/'output'; out.mkdir()
             git(tmp,'clone','--no-checkout','--',d['source'],str(src))
             git(src,'checkout','--detach',d['revision'])
@@ -121,7 +124,8 @@ def execute(x,p,i,d):
                 print('Optional AI report unavailable: '+type(e).__name__,flush=True)
             publish(x,lease,n,d,out,started)
     except Exception as e:
-        comment(x.repo,n,f'Non-finding execution failure ({lease.attempt}): {type(e).__name__}: {e}')
+        detail=str(e) if type(e) is RuntimeError and re.fullmatch(r'command exit -?\d+',str(e)) else type(e).__name__
+        comment(x.repo,n,f'Non-finding execution failure ({lease.attempt}): {detail}; inspect local runner logs')
         if lease.renew():
             run('gh','issue','edit',str(n),'--repo',x.repo,'--remove-label','experiment-ready')
         raise

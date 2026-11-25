@@ -54,3 +54,7 @@ The scheduler runs sequentially, records SQLite cycle history, supports a pause 
 ## Search and MCP
 
 `python findings.py /path/checkout "negative finding"` searches locally committed report text. Fetch the research repository first if freshness matters. The stdio MCP server exposes read-only list_experiments and search_findings. Start `python mcp_server.py --config /private/mcp.json` with JSON fields repo, checkout, policy (path). No execution or mutation through MCP yet.
+
+## Remote compute and physical bench adapters
+
+The remote and bench execution kinds dispatch to a locally installed adapter. The issue names an adapter and an allowed operation, and passes JSON parameters. Local policy defines adapters by name with enabled, kind, argv (absolute executable path), allowed_operations, and optionally lock_file (mandatory for bench). The adapter receives one JSON argument with paths to staged source, inputs, output, operation, parameters, timeout and attempt ID. No issue-supplied shell command is executed by this interface. Bench adapters share an exclusive local flock. The adapter itself must validate parameters, enforce device safety, handle remote cancellation, and write report.md. No production SSH or instrument-specific adapter is bundled yet. Use a dedicated low-privilege adapter account and do not enable arbitrary operations.
