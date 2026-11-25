@@ -1,0 +1,9 @@
+{
+  "enabled": false,
+  "state": "/absolute/private/path/state.sqlite",
+  "pause_file": "/absolute/private/path/paused",
+  "poll_seconds": 60,
+  "daily_seconds": 3600,
+  "allowed_hours": [0,1,2,3,4,5,6,7],
+  "queues": []
+}
