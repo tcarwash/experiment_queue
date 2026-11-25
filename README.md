@@ -16,6 +16,20 @@ pinned source, manifests and evidence. An operator can give an agent a filled
 than selecting each workload individually. Copilot roles are under
 `.github/agents/`; `CLAUDE.md` and `GEMINI.md` share the instructions.
 
+## Repository ownership when using a separate research repo
+
+This repository (`tcarwash/experiment_queue`) is the generic runner
+framework. It does not own the experiment code for every queue it serves.
+For the DORC example, `tcarwash/dorc_experiments` owns DORC-specific
+scripts/examples, fixtures, matrices, issue templates and accepted results.
+The RFSim common-suite executable remains in `tcarwash/RFSim`; this
+repository owns the reusable runner, executor, scheduler and contributor tooling.
+An agent pointed at both checkouts must route writes by that ownership,
+not by whichever directory happens to be its working directory. Read
+[the repository-boundary contract](docs/agents/REPOSITORY_BOUNDARIES.md)
+before multi-repository work. Cross-repository tasks require separate
+commits and PRs.
+
 ## Quick start
 
 Create a private research repository with a default branch and label `experiment-ready`. Clone it locally, authenticate Git and gh, and copy templates/policy.json to policy.json. Explicitly approve native execution and trusted source URLs only on a dedicated account or machine. Native execution is NOT sandboxed: the child can access the user's files, network and credentials despite the reduced environment.
