@@ -31,6 +31,7 @@ def reconcile(x,n,d,accepted,pending,run,lease):
     if count(d,accepted)>=target(d):
         if not lease.renew(): raise RuntimeError('lease lost before close')
         run('gh','issue','close',str(n),'--repo',x.repo,'--reason','completed')
+        run('gh','issue','edit',str(n),'--repo',x.repo,'--remove-label','experiment-ready')
         return True
     if count(d,accepted+pending)>=target(d):
         if not lease.renew(): raise RuntimeError('lease lost before label change')

@@ -91,7 +91,9 @@ def execute(x,p,i,d):
         if not campaigns.dependencies(d,n,x.repo,x.checkout,git,gh,manifest):
             print('dependencies not satisfied',flush=True); return False
         accepted,pending=publication.branch_records(x,n,d,git,gh,run,lease)
-        if publication.reconcile(x,n,d,accepted,pending,run,lease): return False
+        if publication.reconcile(x,n,d,accepted,pending,run,lease):
+            print('replication complete or awaiting accepted reports',flush=True)
+            return x.action=='run'
         if not campaigns.eligible(d,accepted+pending,p['runner']):
             print('replication already submitted by runner',flush=True); return False
         comment(x.repo,n,f'Claimed by {p["runner"]}, attempt {lease.attempt}')

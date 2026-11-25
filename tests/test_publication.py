@@ -56,4 +56,17 @@ class Publication(unittest.TestCase):
         r=lambda runner,attempt:{'runner':runner,'attempt':attempt,'manifest':spec}
         self.assertFalse(publication.reconcile(x,10,spec,[r('a','1')],[],run,Lease()))
         self.assertTrue(publication.reconcile(x,10,spec,[r('a','1'),r('b','2')],[],run,Lease()))
-        self.assertIn('close',calls[-1])
+        self.assertEqual(len(calls),2)
+        self.assertIn('close',calls[0])
+        self.assertIn('--remove-label',calls[1])
+        self.assertIn('experiment-ready',calls[1])
+    def test_pending_skips_without_completion(self):
+        spec={'replication':{'desired_runs':2,'distinct_runners':True}}
+        x=types.SimpleNamespace(repo='owner/research')
+        records=[{'runner':n,'attempt':str(i),'manifest':spec} for i,n in enumerate(('a','b'))]
+        calls=[]
+        class Lease:
+            def renew(self): return True
+        self.assertTrue(publication.reconcile(x,33,spec,[],records,lambda *a: calls.append(a),Lease()))
+        self.assertEqual(calls,[])
+
