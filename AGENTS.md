@@ -2,11 +2,37 @@
 
 This public repository is a GitHub-backed, **contributor-controlled** experiment queue. Start here when asked to configure a contributor, submit research, or develop the runner. These instructions apply to Codex, Claude, Copilot, Gemini/Antigravity, Muse, and agents given this file as context.
 
+## Repository ownership — read before editing
+
+This checkout is **`tcarwash/experiment_queue`**, the generic queue
+framework. It is separate from the research repository whose experiments
+it runs. When both checkouts are present, do not assume work belongs here.
+
+- DORC-owned scripts/examples, fixtures, matrices, issue templates,
+  experiment-specific docs and result evidence belong in
+  **`tcarwash/dorc_experiments`**. Component-owned executable code (such as
+  RFSim's common-suite harness) stays in its source repository.
+- Generic runner, executor, scheduler/service, lease/publication, manifest
+  and contributor-onboarding changes belong in **this repository**.
+- RFSim channel implementation changes belong in **`tcarwash/RFSim`**;
+  DORC's test harness, matrix and evidence remain in DORC.
+
+An experiment request is **not** a request to modify this framework.
+Use this checkout read-only when you only need to validate a manifest or
+invoke the runner against a research checkout. Before any write, verify
+the target checkout's Git remote and read its own `AGENTS.md`. If a task
+needs multiple repositories, use separate commits and PRs. Never combine
+files from different repositories in one commit. If "main repo" or the
+requested write target is ambiguous, ask before editing.
+
+See [the repository-boundary guide](docs/agents/REPOSITORY_BOUNDARIES.md)
+for the task-routing table and two-checkout preflight.
+
 ## Choose the job
 
 - **Onboard a workstation:** [docs/agents/CONTRIBUTOR_SETUP.md](docs/agents/CONTRIBUTOR_SETUP.md). Within an operator-approved *autonomy envelope*, an agent can inspect the host and **choose compatible workloads** (CPU containers, CUDA, ROCm, named remote/bench adapters), conservative limits, and approved images.
-- **Prepare/submit an experiment:** [docs/agents/EXPERIMENT_AUTHORING.md](docs/agents/EXPERIMENT_AUTHORING.md), then the target research repository's own AGENTS.md. A research repository may specialize its experiment procedures.
-- **Modify the runner:** inspect runner.py, executors.py, gpu.py, inputs.py, campaigns.py, publication.py, adapters.py, and service.py; add tests.
+- **Prepare/submit an experiment:** follow [docs/agents/EXPERIMENT_AUTHORING.md](docs/agents/EXPERIMENT_AUTHORING.md), then edit the target research repository (for DORC, `tcarwash/dorc_experiments`) and follow its own `AGENTS.md`. Do not put target-specific scripts or fixtures in this framework repository.
+- **Modify the runner:** only when the requested task is a framework change, inspect runner.py, executors.py, gpu.py, inputs.py, campaigns.py, publication.py, adapters.py, and service.py; add tests in this repository.
 
 ## Boundaries that always apply
 

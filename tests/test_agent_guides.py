@@ -15,6 +15,7 @@ class AgentGuides(unittest.TestCase):
             '.github/copilot-instructions.md',
             'docs/agents/CONTRIBUTOR_SETUP.md',
             'docs/agents/EXPERIMENT_AUTHORING.md',
+            'docs/agents/REPOSITORY_BOUNDARIES.md',
             'templates/contributor-preferences.md',
         ):
             self.assertTrue((ROOT / name).is_file(), name)
@@ -36,6 +37,18 @@ class AgentGuides(unittest.TestCase):
             self.assertTrue(t.startswith('---\nname:'))
             self.assertIn('\ndescription:', t)
             self.assertIn('\n---\n', t)
+
+    def test_repository_ownership_is_explicit(self):
+        agents = (ROOT / 'AGENTS.md').read_text()
+        boundary = (ROOT / 'docs/agents/REPOSITORY_BOUNDARIES.md').read_text()
+        authoring = (ROOT / 'docs/agents/EXPERIMENT_AUTHORING.md').read_text()
+        self.assertIn('tcarwash/experiment_queue', boundary)
+        self.assertIn('tcarwash/dorc_experiments', boundary)
+        self.assertIn('DORC-owned experiment scripts', boundary)
+        self.assertIn('make separate changes', boundary)
+        self.assertIn('docs/agents/REPOSITORY_BOUNDARIES.md', agents)
+        self.assertIn('not in the queue', authoring)
+        self.assertIn('tcarwash/dorc_experiments', authoring)
 
     def test_cpu_issue_template(self):
         d = manifest((ROOT / 'templates/experiment.md').read_text())
