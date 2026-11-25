@@ -37,3 +37,20 @@ inference.py provides a locally configured command adapter, with example presets
 ### Runner selection and role routing
 
 Use `once` instead of `run --issue N` to claim and execute at most one eligible ready issue; a contention loss skips to the next candidate. The issue state, label and body are rechecked after acquiring a lease. No automatic service is installed. Use `review --issue N` for optional advisory management review without claiming or executing work. AI role_backends maps individual roles to locally approved backend names, falling back to ai.backend. Only report and explicit management review are wired. Set staging_dir to an existing private directory visible to the container daemon if it cannot see /tmp. Live Docker smoke test confirmed read-only mounts and writable output with a shared staging path. Podman remains untested.
+
+## Persistent contributor service
+
+Copy templates/service.json to a private location and configure its queue entries as objects with repo, checkout and policy. Enable explicitly. Run:
+
+```sh
+python service.py --config /path/service.json once
+python service.py --config /path/service.json serve
+python service.py --config /path/service.json dashboard --port 8765
+python service.py --config /path/service.json status
+```
+
+The scheduler runs sequentially, records SQLite cycle history, supports a pause file and allowed local hours, and checks a rolling daily wall-time budget before starting each queue cycle. The budget is not a hard running-job cutoff. Interrupted cycle records are marked at restart; orphan processes and publication recovery are not yet reconciled. The dashboard is read-only and binds loopback only; logs may contain private data. Do not proxy it publicly. Use a private state directory.
+
+## Search and MCP
+
+`python findings.py /path/checkout "negative finding"` searches locally committed report text. Fetch the research repository first if freshness matters. The stdio MCP server exposes read-only list_experiments and search_findings. Start `python mcp_server.py --config /private/mcp.json` with JSON fields repo, checkout, policy (path). No execution or mutation through MCP yet.
