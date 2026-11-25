@@ -3,6 +3,7 @@ import argparse, datetime, json, os, pathlib, re, subprocess, tempfile, time, uu
 from inputs import validate, approved, materialize
 from executors import permitted, command, cleanup
 from adapters import lock as adapter_lock
+import campaigns, publication
 from inference import report as ai_report, advise
 UTC=datetime.timezone.utc
 def now(): return datetime.datetime.now(UTC)
@@ -19,6 +20,7 @@ def manifest(body):
     if not re.fullmatch('[0-9a-f]{40}',d.get('revision','')): raise ValueError('pin full git revision')
     if not isinstance(d.get('capabilities',[]),list): raise ValueError('invalid capabilities')
     validate(d.get("inputs",[]))
+    campaigns.validate(d)
     return d
 def matches(d,p):
     return (set(d.get('capabilities',[])) <= set(p.get('capabilities',[]))
@@ -62,6 +64,8 @@ def main():
     a.add_argument('--repo',required=True); a.add_argument('--checkout',required=True); a.add_argument('--policy',required=True)
     a.add_argument('action',choices=['list','run','review','once']); a.add_argument('--issue',type=int)
     x=a.parse_args(); p=json.loads(pathlib.Path(x.policy).read_text())
+    if git(x.checkout,'remote','get-url','origin').stdout.strip() not in (f'https://github.com/{x.repo}.git',f'https://github.com/{x.repo}',f'git@github.com:{x.repo}.git'):
+        raise SystemExit('checkout origin does not match queue repository')
     candidates=queue(x.repo) if x.issue is None else [gh(x.repo,'issue','view',str(x.issue),'--json','number,title,body,state,labels')]
     for i in candidates:
         if 'state' in i and (i['state']!='OPEN' or not any(l['name']=='experiment-ready' for l in i['labels'])): continue
@@ -79,10 +83,17 @@ def execute(x,p,i,d):
     n=i['number']; lease=Lease(x.checkout,n,p['runner'])
     if not lease.claim():
         print('already claimed',flush=True); return False
+    publishing=False
     try:
         fresh=gh(x.repo,'issue','view',str(n),'--json','state,body,labels')
         if fresh['state']!='OPEN' or not any(l['name']=='experiment-ready' for l in fresh['labels']) or fresh['body']!=i['body']:
             print('issue changed after discovery',flush=True); return False
+        if not campaigns.dependencies(d,n,x.repo,x.checkout,git,gh,manifest):
+            print('dependencies not satisfied',flush=True); return False
+        accepted,pending=publication.branch_records(x,n,d,git,gh,run,lease)
+        if publication.reconcile(x,n,d,accepted,pending,run,lease): return False
+        if not campaigns.eligible(d,accepted+pending,p['runner']):
+            print('replication already submitted by runner',flush=True); return False
         comment(x.repo,n,f'Claimed by {p["runner"]}, attempt {lease.attempt}')
         with adapter_lock(d,p), tempfile.TemporaryDirectory(prefix='experiment-',dir=p.get('staging_dir')) as tmp:
             src=pathlib.Path(tmp)/'source'; out=pathlib.Path(tmp)/'output'; out.mkdir()
@@ -122,8 +133,12 @@ def execute(x,p,i,d):
                     with (out/'ai-draft.md').open('x') as f: f.write('AI draft; requires review. Backend: '+draft['backend']+'\n\n'+draft['draft'])
             except Exception as e:
                 print('Optional AI report unavailable: '+type(e).__name__,flush=True)
+            publishing=True
             publish(x,lease,n,d,out,started)
     except Exception as e:
+        if publishing:
+            print('Publication interrupted; ready label retained for recovery',flush=True)
+            raise
         detail=str(e) if type(e) is RuntimeError and re.fullmatch(r'command exit -?\d+',str(e)) else type(e).__name__
         comment(x.repo,n,f'Non-finding execution failure ({lease.attempt}): {detail}; inspect local runner logs')
         if lease.renew():
@@ -145,8 +160,8 @@ def publish(x,lease,n,d,out,started):
         if not lease.renew(): raise RuntimeError('lease lost')
         branch='results/experiment-'+str(n)+'/'+lease.attempt
         git(tmp,'push','origin',f'HEAD:refs/heads/{branch}')
-        url=run('gh','pr','create','--repo',x.repo,'--head',branch,'--title',f'Result #{n}: {lease.attempt}','--body',f'Closes #{n}\n\nReview experiment evidence before merging.').stdout.strip()
+        url=publication.create_pr(x,n,d,lease.attempt,branch,run)
         comment(x.repo,n,f'Result submitted: {url}')
-        if lease.renew():
+        if campaigns.target(d)==1 and lease.renew():
             run('gh','issue','edit',str(n),'--repo',x.repo,'--remove-label','experiment-ready')
 if __name__=='__main__': main()
