@@ -23,5 +23,12 @@
     "backends": {},
     "role_backends": {}
   },
-  "staging_dir": null
+  "staging_dir": null,
+  "gpu": {
+    "enabled": false,
+    "backend": null,
+    "device_ids": [],
+    "render_devices": [],
+    "group_ids": []
+  }
 }
