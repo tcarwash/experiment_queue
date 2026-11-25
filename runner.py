@@ -97,6 +97,8 @@ def execute(x,p,i,d):
             publish(x,lease,n,d,out,started)
     except Exception as e:
         comment(x.repo,n,f'Non-finding execution failure ({lease.attempt}): {type(e).__name__}: {e}')
+        if lease.renew():
+            run('gh','issue','edit',str(n),'--repo',x.repo,'--remove-label','experiment-ready')
         raise
     finally: lease.release()
 def publish(x,lease,n,d,out,started):
@@ -115,4 +117,6 @@ def publish(x,lease,n,d,out,started):
         git(tmp,'push','origin',f'HEAD:refs/heads/{branch}')
         url=run('gh','pr','create','--repo',x.repo,'--head',branch,'--title',f'Result #{n}: {lease.attempt}','--body',f'Closes #{n}\n\nReview experiment evidence before merging.').stdout.strip()
         comment(x.repo,n,f'Result submitted: {url}')
+        if lease.renew():
+            run('gh','issue','edit',str(n),'--repo',x.repo,'--remove-label','experiment-ready')
 if __name__=='__main__': main()
