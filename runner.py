@@ -1,6 +1,8 @@
 """Contributor-controlled GitHub experiment runner (standard library only)."""
 import argparse, datetime, json, os, pathlib, re, subprocess, tempfile, time, uuid
 from inputs import validate, approved, materialize
+from executors import permitted, command, cleanup
+from inference import report as ai_report
 UTC=datetime.timezone.utc
 def now(): return datetime.datetime.now(UTC)
 def run(*args, cwd=None, check=True, **kw):
@@ -21,8 +23,7 @@ def matches(d,p):
     return (set(d.get('capabilities',[])) <= set(p.get('capabilities',[]))
         and d.get('source') in p.get('allowed_sources',[])
         and approved(d.get('inputs',[]),p)
-        and d.get('execution')=='scripted'
-        and p.get('allow_native',False)
+        and permitted(d,p)
         and 0 < d.get('timeout',0) <= p.get('max_seconds',0))
 class Lease:
     def __init__(self,repo,issue,runner,ttl=120):
@@ -83,7 +84,9 @@ def execute(x,p,i,d):
             started=now()
             import signal
             with open(out/'stdout.log','w') as stdout, open(out/'stderr.log','w') as stderr:
-                proc=subprocess.Popen(d['command'],cwd=src,env=env,stdout=stdout,stderr=stderr,start_new_session=True)
+                name='experiment-'+lease.attempt
+                argv=command(d,p,src,input_root,out,name)
+                proc=subprocess.Popen(argv,cwd=src,env=env if d['execution']=='scripted' else None,stdout=stdout,stderr=stderr,start_new_session=True)
                 deadline=time.monotonic()+d['timeout']
                 renewal=time.monotonic()+30
                 try:
@@ -96,10 +99,18 @@ def execute(x,p,i,d):
                 finally:
                     if proc.poll() is None:
                         os.killpg(proc.pid,signal.SIGKILL); proc.wait()
+                    cleanup(d,p,name)
             if proc.returncode: raise RuntimeError(f'command exit {proc.returncode}')
             report=out/'report.md'
             if not report.is_file() or report.is_symlink() or not report.read_text().strip(): raise ValueError('missing report.md')
             if not lease.renew(): raise RuntimeError('lease lost before publication')
+            try:
+                draft=ai_report(p,out)
+                if draft:
+                    # Exclusive creation: never follow a workload-provided symlink.
+                    with (out/'ai-draft.md').open('x') as f: f.write('AI draft; requires review. Backend: '+draft['backend']+'\n\n'+draft['draft'])
+            except Exception as e:
+                print('Optional AI report unavailable: '+type(e).__name__,flush=True)
             publish(x,lease,n,d,out,started)
     except Exception as e:
         comment(x.repo,n,f'Non-finding execution failure ({lease.attempt}): {type(e).__name__}: {e}')

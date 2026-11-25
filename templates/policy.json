@@ -7,5 +7,19 @@
   "allow_native": false,
   "max_seconds": 600,
   "allowed_inputs": [],
-  "max_input_bytes": 100000000
+  "max_input_bytes": 100000000,
+  "allow_container": false,
+  "container_runtime": "podman",
+  "allowed_images": [],
+  "container_cpus": 2,
+  "container_memory": "2g",
+  "ai": {
+    "enabled": false,
+    "allow_evidence_transfer": false,
+    "roles": [
+      "report"
+    ],
+    "backend": "codex",
+    "backends": {}
+  }
 }
