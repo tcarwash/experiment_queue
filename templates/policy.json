@@ -20,6 +20,8 @@
       "report"
     ],
     "backend": "codex",
-    "backends": {}
-  }
+    "backends": {},
+    "role_backends": {}
+  },
+  "staging_dir": null
 }

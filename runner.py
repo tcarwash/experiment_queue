@@ -2,7 +2,7 @@
 import argparse, datetime, json, os, pathlib, re, subprocess, tempfile, time, uuid
 from inputs import validate, approved, materialize
 from executors import permitted, command, cleanup
-from inference import report as ai_report
+from inference import report as ai_report, advise
 UTC=datetime.timezone.utc
 def now(): return datetime.datetime.now(UTC)
 def run(*args, cwd=None, check=True, **kw):
@@ -59,21 +59,29 @@ def comment(repo,n,message):
 def main():
     a=argparse.ArgumentParser()
     a.add_argument('--repo',required=True); a.add_argument('--checkout',required=True); a.add_argument('--policy',required=True)
-    a.add_argument('action',choices=['list','run']); a.add_argument('--issue',type=int)
+    a.add_argument('action',choices=['list','run','review','once']); a.add_argument('--issue',type=int)
     x=a.parse_args(); p=json.loads(pathlib.Path(x.policy).read_text())
     for i in queue(x.repo):
         try: d=manifest(i['body']); eligible=matches(d,p)
         except (ValueError,TypeError,KeyError): continue
         print(f"{i['number']}: {i['title']} eligible={eligible}",flush=True)
-        if x.action!='run' or not eligible or i['number']!=x.issue: continue
-        execute(x,p,i,d); return
-    if x.action=='run': raise SystemExit('no matching eligible issue')
+        if x.action=='review' and i['number']==x.issue:
+            draft=advise(p,'management',{'title':i['title'],'manifest':d,'eligible':eligible})
+            print(draft['draft'] if draft else 'Management assistance disabled')
+            return
+        if not eligible or not (x.action=='once' or (x.action=='run' and i['number']==x.issue)): continue
+        if execute(x,p,i,d): return
+    if x.action in ('run','review'): raise SystemExit('no matching issue')
 def execute(x,p,i,d):
     n=i['number']; lease=Lease(x.checkout,n,p['runner'])
-    if not lease.claim(): raise SystemExit('already claimed')
+    if not lease.claim():
+        print('already claimed',flush=True); return False
     try:
+        fresh=gh(x.repo,'issue','view',str(n),'--json','state,body,labels')
+        if fresh['state']!='OPEN' or not any(l['name']=='experiment-ready' for l in fresh['labels']) or fresh['body']!=i['body']:
+            print('issue changed after discovery',flush=True); return False
         comment(x.repo,n,f'Claimed by {p["runner"]}, attempt {lease.attempt}')
-        with tempfile.TemporaryDirectory(prefix='experiment-') as tmp:
+        with tempfile.TemporaryDirectory(prefix='experiment-',dir=p.get('staging_dir')) as tmp:
             src=pathlib.Path(tmp)/'source'; out=pathlib.Path(tmp)/'output'; out.mkdir()
             git(tmp,'clone','--no-checkout','--',d['source'],str(src))
             git(src,'checkout','--detach',d['revision'])
@@ -118,6 +126,7 @@ def execute(x,p,i,d):
             run('gh','issue','edit',str(n),'--repo',x.repo,'--remove-label','experiment-ready')
         raise
     finally: lease.release()
+    return True
 def publish(x,lease,n,d,out,started):
     import hashlib, shutil
     with tempfile.TemporaryDirectory(prefix='result-') as tmp:

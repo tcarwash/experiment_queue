@@ -10,7 +10,7 @@ PRESETS={
 def advise(policy,role,evidence):
     ai=policy.get('ai',{})
     if not ai.get('enabled') or not ai.get('allow_evidence_transfer') or role not in ai.get('roles',[]): return None
-    backend=ai.get('backend')
+    backend=ai.get('role_backends',{}).get(role,ai.get('backend'))
     cfg=ai.get('backends',{}).get(backend,{})
     if not cfg.get('enabled'): return None
     argv=cfg.get('argv')

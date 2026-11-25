@@ -18,3 +18,8 @@ class Backends(unittest.TestCase):
         self.assertIn('draft',advise(p,'report',{'result':42})['draft'])
         p['ai']['allow_evidence_transfer']=False
         self.assertIsNone(advise(p,'report',{}))
+    def test_role_routing(self):
+        cfg=lambda label: {'enabled':True,'argv':[sys.executable,'-c',f'print({label!r})']}
+        p={'ai':{'enabled':True,'allow_evidence_transfer':True,'roles':['report','management'],'backend':'a','role_backends':{'management':'b'},'backends':{'a':cfg('report'), 'b':cfg('manager')}}}
+        self.assertEqual(advise(p,'report',{})['backend'],'a')
+        self.assertEqual(advise(p,'management',{})['draft'].strip(),'manager')
